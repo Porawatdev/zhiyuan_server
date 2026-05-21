@@ -5,36 +5,35 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🗄️ ฐานข้อมูลจำลอง (เพิ่มระบบจำนวนวัน)
+// 📌 กำหนดลายเซ็นแท้ของแอปเรา (กันแอบแก้แอป)
+const VALID_SIGNATURE = "1488"; 
+
+// 🗄️ ฐานข้อมูลจำลอง (เพิ่มคีย์ใหม่ได้ที่นี่เลย)
 let database = {
-    "12345": { 
-        hwid: null, 
-        status: "active", 
-        durationDays: 7,    // กำหนดอายุคีย์ (เช่น 7 วัน) นับตั้งแต่ล็อกอินครั้งแรก
-        expiresAt: null     // ระบบจะใส่วันหมดอายุให้อัตโนมัติเมื่อผูกเครื่อง
-    },
-    "VIP999": { 
-        hwid: null, 
-        status: "active", 
-        durationDays: 30,   // คีย์แบบ 30 วัน
-        expiresAt: null 
-    },
-    "PERMANENT": {
-        hwid: null,
-        status: "active",
-        durationDays: null, // คีย์ถาวร ไม่มีวันหมดอายุ
-        expiresAt: null
-    }
+    "12345": { hwid: null, status: "active", durationDays: 7, expiresAt: null },
+    "VIP999": { hwid: null, status: "active", durationDays: 30, expiresAt: null },
+    "zhiyuan-eghuy4e": { hwid: null, status: "active", durationDays: 30, expiresAt: null },
+    "PERMANENT": { hwid: null, status: "active", durationDays: null, expiresAt: null }
 };
 
 app.post('/api/verify', (req, res) => {
     const { key, hwid, signature } = req.body;
-    console.log(`\n[+] มีคนพยายาม Login: Key='${key}', HWID='${hwid}'`);
+    console.log(`\n[+] มีคนพยายาม Login: Key='${key}', HWID='${hwid}', Sig='${signature}'`);
 
     if (!key || !hwid || !signature) {
         return res.status(400).json({ valid: false, message: "ข้อมูลส่งมาไม่ครบ!" });
     }
 
+    // 🔥 ด่านที่ 1: เช็คการดัดแปลงแอป (Anti-Tamper)
+    if (signature !== VALID_SIGNATURE) {
+        console.log(`[x] บล็อก! ลายเซ็นแอปถูกดัดแปลง (แอบแกะแอป)`);
+        return res.status(403).json({ 
+            valid: false, 
+            message: "การเข้าสู่ระบบเซิร์ฟเวอร์ล้มเหลว กรุณาดาวน์โหลดจากช่องทางที่ถูกต้องเท่านั้น" 
+        });
+    }
+
+    // 🔥 ด่านที่ 2: เช็คว่ามีคีย์ในระบบไหม
     const userRecord = database[key];
     if (!userRecord) {
         console.log(`[x] ตรวจไม่พบ Key ในระบบ`);
@@ -46,15 +45,14 @@ app.post('/api/verify', (req, res) => {
         return res.status(403).json({ valid: false, message: "License Key นี้ถูกระงับการใช้งาน!" });
     }
 
-    // --- 1. ระบบเช็ค HWID และเริ่มนับเวลาวันแรก ---
+    // 🔥 ด่านที่ 3: เช็ค HWID และเริ่มนับเวลาวันแรก
     if (userRecord.hwid === null) {
         userRecord.hwid = hwid;
         
-        // ถ้าคีย์มีการจำกัดวัน ให้เริ่มคำนวณเวลาหมดอายุตั้งแต่วินาทีนี้!
         if (userRecord.durationDays !== null) {
             const expireDate = new Date();
             expireDate.setDate(expireDate.getDate() + userRecord.durationDays);
-            userRecord.expiresAt = expireDate.getTime(); // เก็บเป็นตัวเลข Timestamp
+            userRecord.expiresAt = expireDate.getTime();
             console.log(`[!] ผูกเครื่องสำเร็จ! คีย์จะหมดอายุวันที่: ${expireDate.toLocaleString('th-TH')}`);
         } else {
             console.log(`[!] ผูกเครื่องสำเร็จ! (คีย์ถาวร)`);
@@ -66,7 +64,7 @@ app.post('/api/verify', (req, res) => {
         return res.status(403).json({ valid: false, message: "คีย์นี้ถูกใช้งานกับอุปกรณ์อื่นแล้ว!" });
     }
 
-    // --- 2. ระบบเช็ควันหมดอายุ (สำหรับการล็อกอินครั้งต่อๆ ไป) ---
+    // 🔥 ด่านที่ 4: เช็ควันหมดอายุ 
     if (userRecord.expiresAt !== null) {
         const currentTime = Date.now();
         if (currentTime > userRecord.expiresAt) {
