@@ -6,7 +6,7 @@ app.use(cors());
 app.use(express.json());
 
 // 📌 กำหนดลายเซ็นแท้ของแอปเรา (กันแอบแก้แอป)
-const VALID_SIGNATURE = "1488"; 
+const VALID_SIGNATURE = "06092a864886f70d01010b0500305e31"; 
 
 // 🗄️ ฐานข้อมูลจำลอง (เพิ่มคีย์ใหม่ได้ที่นี่เลย)
 let database = {
